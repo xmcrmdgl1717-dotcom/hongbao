@@ -1,24 +1,28 @@
 <script setup>
+import { playSound } from '../utils/audio'
 defineProps({ phase: String, isMyIssue: Boolean, canGrab: Boolean })
-defineEmits(['issue', 'grab'])
+const emit = defineEmits(['issue', 'grab'])
+
+function handleIssue() { playSound('issue'); emit('issue') }
+function handleGrab() { playSound('grab'); emit('grab') }
 </script>
 
 <template>
-  <div class="h-16 flex items-center justify-center">
+  <div class="h-20 flex items-center justify-center w-full">
     <button
       v-if="isMyIssue"
-      class="px-10 py-3 rounded-full bg-gradient-to-b from-red-500 to-red-700 shadow-lg shadow-red-900/50 font-bold text-lg animate-pulse"
-      @click="$emit('issue')"
-    >立即发包</button>
+      class="px-12 py-4 rounded-full bg-gradient-to-b from-red-500 to-red-700 shadow-xl shadow-red-900/50 font-black text-xl animate-pulse hover:scale-105 active:scale-95 transition-transform"
+      @click="handleIssue"
+    >发红包</button>
     
     <button
       v-else-if="canGrab"
-      class="px-12 py-3 rounded-full bg-gradient-to-b from-yellow-400 to-yellow-600 text-black shadow-lg shadow-yellow-900/50 font-bold text-xl animate-bounce"
-      @click="$emit('grab')"
-    >抢</button>
+      class="px-16 py-4 rounded-full bg-gradient-to-b from-yellow-400 to-yellow-600 text-black shadow-xl shadow-yellow-900/50 font-black text-2xl animate-bounce hover:scale-105 active:scale-95 transition-transform"
+      @click="handleGrab"
+    >抢红包</button>
 
-    <div v-else class="text-emerald-500 text-sm">
-      {{ phase === 'GRABBING' ? '已抢过，等待其他人...' : (phase === 'SETTLING' ? '正在结算...' : '等待发包...') }}
+    <div v-else class="text-emerald-500 text-sm font-bold tracking-widest bg-emerald-900/50 px-6 py-3 rounded-full border border-emerald-800">
+      {{ phase === 'GRABBING' ? '已抢，等待中...' : (phase === 'SETTLING' ? '结算中...' : '等待其他人发包...') }}
     </div>
   </div>
 </template>

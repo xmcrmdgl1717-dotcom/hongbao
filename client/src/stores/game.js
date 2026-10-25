@@ -12,30 +12,44 @@ export const useGameStore = defineStore('game', {
     deadline: null,
     config: null,
     myId: '',
-    players: []
+    players: [],
+    lastSettle: null,
+    finalStats: [],
+    hostId: null,
+    chatHistory: [] // 新增聊天记录
   }),
   actions: {
     applySnapshot(s) {
-      this.roomId = s.roomId
-      this.phase = s.phase
-      this.seq = s.seq
-      this.round = s.round
-      this.issuerId = s.issuerId
-      this.grabs = s.grabs
-      this.multiplier = s.multiplier
-      this.deadline = s.deadline
-      this.config = s.config
-      this.players = s.players || []
+      Object.assign(this, {
+        roomId: s.roomId,
+        phase: s.phase,
+        seq: s.seq,
+        round: s.round,
+        issuerId: s.issuerId,
+        grabs: s.grabs,
+        multiplier: s.multiplier,
+        deadline: s.deadline,
+        config: s.config,
+        players: s.players || [],
+        hostId: s.hostId
+      })
     },
     applyMessage(msg) {
       if (msg.type === 'SNAPSHOT') { this.applySnapshot(msg.snapshot); return }
       if (msg.seq && msg.seq <= this.seq) return
-      if (msg.phase) this.phase = msg.phase
       
+      if (msg.phase) this.phase = msg.phase
+      if (msg.players) this.players = msg.players
+      
+      if (msg.type === 'CHAT') {
+        this.chatHistory.push({ userId: msg.userId, content: msg.content })
+        if (this.chatHistory.length > 30) this.chatHistory.shift()
+      }
       if (msg.type === 'PHASE') {
         this.issuerId = msg.issuerId
         this.deadline = msg.deadline
-        this.grabs = [] // 新一轮清空
+        this.grabs = []
+        this.lastSettle = null
       }
       if (msg.type === 'PACKET_ISSUED') {
         this.issuerId = msg.issuerId
@@ -49,7 +63,10 @@ export const useGameStore = defineStore('game', {
         this.grabs = msg.grabs
         this.multiplier = msg.multiplier
         this.round++
-        this._lastSettle = msg // 暂存结算信息供UI使用
+        this.lastSettle = { ...msg, myId: this.myId }
+      }
+      if (msg.type === 'FINISHED') {
+        this.finalStats = msg.finalStats
       }
       if (msg.seq) this.seq = msg.seq
     }
