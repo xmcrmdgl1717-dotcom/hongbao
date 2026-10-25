@@ -5,7 +5,9 @@ import { useGameStore } from '../stores/game'
 const store = useGameStore()
 const emit = defineEmits(['close', 'confirm'])
 
-const amount = ref(store.multiplier * 20)
+// 默认金额 = 底金 (20元) * 当前倍数
+const baseCents = store.config?.baseAmountCents || 2000
+const amount = ref((baseCents * store.multiplier) / 100)
 const count = ref(store.players.filter(p => !p.offline).length || 1)
 
 function handleConfirm() {
@@ -21,10 +23,10 @@ function handleConfirm() {
 <template>
   <div class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 backdrop-blur-sm" @click.self="$emit('close')">
     <div class="bg-gradient-to-b from-[#1a3c2a] to-[#0d1f15] w-full max-w-sm rounded-3xl p-6 border border-emerald-500/30 shadow-[0_20px_50px_rgba(0,0,0,0.8)] animate-scale-up relative overflow-hidden">
-      <!-- 装饰光效 -->
       <div class="absolute top-0 right-0 w-32 h-32 bg-red-500/20 blur-3xl rounded-full"></div>
 
-      <h3 class="text-center text-2xl font-black text-yellow-400 mb-6 drop-shadow-md">发红包</h3>
+      <h3 class="text-center text-2xl font-black text-yellow-400 mb-2 drop-shadow-md">发红包</h3>
+      <p class="text-center text-xs text-emerald-400 mb-6">当前倍数 x{{ store.multiplier }} (基础20元)</p>
       
       <div class="flex flex-col gap-5">
         <div class="flex items-center gap-2 border-b border-emerald-700/50 pb-2">

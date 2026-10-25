@@ -20,20 +20,9 @@ const myPlayer = computed(() => store.players.find(p => p.id === store.myId))
 // 根据人数将玩家分布到桌子周围的固定位置
 const seatPositions = computed(() => {
   const p = store.players
-  const positions = []
-  // 最多显示4个真实玩家座位的2.5D布局
-  const layouts = {
-    1: ['bottom'],
-    2: ['bottom', 'top'],
-    3: ['bottom', 'right', 'top'],
-    4: ['bottom', 'right', 'top', 'left']
-  }
+  const layouts = { 1: ['bottom'], 2: ['bottom', 'top'], 3: ['bottom', 'right', 'top'], 4: ['bottom', 'right', 'top', 'left'] }
   const layout = layouts[p.length] || layouts[4]
-  
-  return p.map((player, i) => ({
-    ...player,
-    posClass: layout[i] // 用来绑CSS类
-  }))
+  return p.map((player, i) => ({ ...player, posClass: layout[i] }))
 })
 
 function handleIssueClick() { showIssueModal.value = true }
@@ -45,13 +34,12 @@ function confirmIssue({ amount, count }) {
 function onGrab() { send({ type: 'GRAB', roomId: store.roomId, userId: store.myId }) }
 function addBot() { send({ type: 'ADD_BOT', roomId: store.roomId }) }
 function kickBot(botId) { send({ type: 'KICK_BOT', roomId: store.roomId, botId }) }
+function startGame() { send({ type: 'START_GAME', roomId: store.roomId, userId: store.myId }) }
 function leaveRoom() { send({ type: 'LEAVE_ROOM', roomId: store.roomId, userId: store.myId }); emit('leave') }
 </script>
 
 <template>
-  <!-- 3D透视背景 -->
   <div class="min-h-screen bg-[#051008] flex flex-col relative overflow-hidden perspective-container">
-    <!-- 模拟桌布的渐变和网格 -->
     <div class="absolute inset-0 table-background pointer-events-none"></div>
 
     <!-- 顶部 HUD -->
@@ -73,7 +61,7 @@ function leaveRoom() { send({ type: 'LEAVE_ROOM', roomId: store.roomId, userId: 
     <!-- 3D 桌面区域 -->
     <main class="flex-1 relative w-full max-w-5xl mx-auto mt-16">
       
-      <!-- 中心舞台 (正中央) -->
+      <!-- 中心舞台 -->
       <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
         <RedPacketStage :phase="store.phase" :grabs="store.grabs" :deadline="store.deadline" :last-settle="store.lastSettle" />
       </div>
@@ -92,16 +80,27 @@ function leaveRoom() { send({ type: 'LEAVE_ROOM', roomId: store.roomId, userId: 
         />
       </div>
 
-      <!-- 房主控制台 (仅在有空位且是房主时显示) -->
+      <!-- 房主控制台 -->
       <div v-if="isHost && store.players.length < 4" class="absolute bottom-4 left-4 z-30">
         <button @click="addBot" class="px-4 py-2 bg-emerald-800/80 text-emerald-300 border border-emerald-600 rounded shadow-lg text-sm hover:bg-emerald-700 transition flex items-center gap-2">
           <span>🤖</span> 添加机器人
         </button>
       </div>
 
-      <!-- 底部操作栏 -->
+      <!-- 底部操作栏 / 开始游戏按钮 -->
       <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 w-full flex justify-center">
+        
+        <!-- 如果游戏还没开始 -->
+        <div v-if="store.phase === 'WAITING'" class="flex flex-col items-center gap-4">
+          <div class="text-emerald-400 text-sm animate-pulse">等待房主开始游戏...</div>
+          <button v-if="isHost" @click="startGame" class="px-12 py-4 rounded-full bg-gradient-to-b from-green-400 to-green-600 shadow-xl shadow-green-900/50 font-black text-xl hover:scale-105 active:scale-95 transition-transform">
+            开始游戏
+          </button>
+        </div>
+
+        <!-- 如果游戏已经在进行中 -->
         <ActionBar
+          v-else
           :phase="store.phase"
           :is-my-issue="isMyIssue"
           :can-grab="canGrab"
@@ -118,10 +117,7 @@ function leaveRoom() { send({ type: 'LEAVE_ROOM', roomId: store.roomId, userId: 
 </template>
 
 <style>
-/* 模拟 3D 桌布 */
-.perspective-container {
-  perspective: 1000px;
-}
+.perspective-container { perspective: 1000px; }
 .table-background {
   background: radial-gradient(circle at 50% 50%, #0c3b27 0%, #03120b 80%);
   transform: rotateX(15deg) scale(1.1);
@@ -129,11 +125,7 @@ function leaveRoom() { send({ type: 'LEAVE_ROOM', roomId: store.roomId, userId: 
   box-shadow: inset 0 0 100px rgba(0,0,0,0.8);
   border: 2px solid rgba(16, 185, 129, 0.1);
 }
-
-/* 座位绝对定位（2.5D 环绕） */
-.seat-wrapper {
-  transition: all 0.3s ease;
-}
+.seat-wrapper { transition: all 0.3s ease; }
 .seat-bottom { bottom: 10%; left: 50%; transform: translateX(-50%) scale(1.1); }
 .seat-top { top: 10%; left: 50%; transform: translateX(-50%) scale(0.9); }
 .seat-left { left: 5%; top: 50%; transform: translateY(-50%) scale(0.95); }

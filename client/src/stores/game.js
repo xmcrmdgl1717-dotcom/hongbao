@@ -2,24 +2,16 @@ import { defineStore } from 'pinia'
 
 export const useGameStore = defineStore('game', {
   state: () => ({
-    roomId: null,
-    phase: 'WAITING',
-    seq: 0,
-    round: 0,
-    issuerId: null,
-    grabs: [],
-    multiplier: 1,
-    deadline: null,
-    config: null,
-    myId: '',
-    players: [],
-    lastSettle: null,
-    finalStats: [],
-    hostId: null,
-    // 大厅数据
-    lobbyRooms: [],
-    errorMsg: ''
+    roomId: null, phase: 'WAITING', seq: 0, round: 0, issuerId: null, grabs: [], multiplier: 1,
+    deadline: null, config: null, myId: '', players: [], lastSettle: null, finalStats: [], hostId: null,
+    lobbyRooms: [], errorMsg: ''
   }),
+  getters: {
+    myBalance: (state) => {
+      const me = state.players.find(p => p.id === state.myId)
+      return me ? me.balance : 0
+    }
+  },
   actions: {
     applySnapshot(s) {
       Object.assign(this, {

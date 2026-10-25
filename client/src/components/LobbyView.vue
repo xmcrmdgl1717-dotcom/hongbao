@@ -10,15 +10,11 @@ const showCreate = ref(false)
 const showJoinPrivate = ref(false)
 const joinRoomId = ref('')
 const joinPassword = ref('')
-const errorMsg = ref('')
 
-// 创建房间表单
 const newRoom = ref({ id: 'room-' + Math.floor(Math.random()*1000), mode: 'worst', isPublic: true, password: '', maxRounds: 10 })
 const nickname = ref(localStorage.getItem('rp_nickname') || '玩家' + Math.floor(Math.random() * 1000))
 
-onMounted(() => {
-  send({ type: 'JOIN_LOBBY' })
-})
+onMounted(() => { send({ type: 'JOIN_LOBBY' }) })
 
 function createRoom() {
   if (!nickname.value) return alert('请填昵称')
@@ -26,15 +22,8 @@ function createRoom() {
   store.myId = nickname.value
   
   send({ 
-    type: 'CREATE_ROOM', 
-    roomId: newRoom.value.id, 
-    mode: newRoom.value.mode, 
-    isPublic: newRoom.value.isPublic, 
-    password: newRoom.value.password, 
-    maxRounds: newRoom.value.maxRounds 
+    type: 'CREATE_ROOM', roomId: newRoom.value.id, mode: newRoom.value.mode, isPublic: newRoom.value.isPublic, password: newRoom.value.password, maxRounds: newRoom.value.maxRounds 
   })
-  
-  // 创建后立刻进房
   send({ type: 'JOIN_ROOM', roomId: newRoom.value.id, userId: nickname.value, password: newRoom.value.password })
   emit('enter-room')
 }
@@ -58,6 +47,7 @@ function enterRoom(roomId, pwd) {
 }
 
 function confirmPrivateJoin() {
+  if (!nickname.value) return alert('请填昵称')
   enterRoom(joinRoomId.value, joinPassword.value)
   showJoinPrivate.value = false
 }
@@ -67,16 +57,15 @@ function confirmPrivateJoin() {
   <div class="min-h-screen bg-[#0a1f14] text-white flex flex-col relative overflow-hidden">
     <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-emerald-500/10 blur-[100px] pointer-events-none"></div>
 
-    <!-- Header -->
     <header class="p-6 flex justify-between items-center border-b border-emerald-900/50 z-10">
       <h1 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-600">🧧 欢乐红包大厅</h1>
       <div class="flex gap-4 items-center">
-        <input v-model="nickname" placeholder="输入你的昵称" class="bg-black/40 border border-emerald-700/50 rounded-lg px-4 py-2 outline-none focus:border-yellow-500 w-48 text-sm" />
+        <input v-model="nickname" placeholder="输入你的昵称" class="bg-black/40 border border-emerald-700/50 rounded-lg px-4 py-2 outline-none focus:border-yellow-500 w-40 text-sm" />
+        <button @click="showJoinPrivate = true" class="px-4 py-2 bg-emerald-800 text-emerald-200 font-bold rounded-lg border border-emerald-600 hover:bg-emerald-700 transition text-sm">🔑 加入私密房</button>
         <button @click="showCreate = true" class="px-6 py-2 bg-gradient-to-b from-yellow-400 to-yellow-600 text-yellow-950 font-bold rounded-lg shadow-lg hover:scale-105 transition">+ 创建房间</button>
       </div>
     </header>
 
-    <!-- 房间列表 -->
     <main class="flex-1 p-8 z-10 max-w-6xl mx-auto w-full">
       <h2 class="text-xl font-bold mb-6 text-emerald-300 flex items-center gap-2">
         公开房间 <span class="text-xs bg-emerald-800 px-2 py-1 rounded">{{ store.lobbyRooms.length }}个</span>
@@ -101,7 +90,7 @@ function confirmPrivateJoin() {
       </div>
     </main>
 
-    <!-- 弹窗：创建房间 -->
+    <!-- 创建房间弹窗 -->
     <div v-if="showCreate" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm p-4">
       <div class="bg-[#133024] border border-emerald-500/30 rounded-3xl p-6 w-full max-w-md shadow-2xl animate-scale-up">
         <h3 class="text-2xl font-bold text-yellow-400 mb-6">创建房间</h3>
@@ -144,16 +133,16 @@ function confirmPrivateJoin() {
       </div>
     </div>
 
-    <!-- 弹窗：私密房间密码 -->
+    <!-- 加入私密房弹窗 -->
     <div v-if="showJoinPrivate" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm p-4">
       <div class="bg-[#133024] border border-red-500/30 rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-scale-up text-center">
         <div class="text-4xl mb-4">🔒</div>
-        <h3 class="text-xl font-bold text-white mb-2">私密房间</h3>
-        <p class="text-emerald-400 text-sm mb-6">请输入密码进入 {{ joinRoomId }}</p>
-        <input v-model="joinPassword" type="password" placeholder="******" class="w-full bg-black/40 border border-red-700/50 rounded-lg p-3 outline-none focus:border-red-500 text-center text-xl tracking-widest mb-6" />
+        <h3 class="text-xl font-bold text-white mb-4">加入私密房间</h3>
+        <input v-model="joinRoomId" placeholder="输入房间号" class="w-full bg-black/40 border border-emerald-700 rounded-lg p-3 outline-none text-center text-lg mb-3" />
+        <input v-model="joinPassword" type="password" placeholder="输入密码" class="w-full bg-black/40 border border-red-700/50 rounded-lg p-3 outline-none text-center text-lg mb-6" />
         <div class="flex gap-4">
           <button @click="showJoinPrivate = false" class="flex-1 py-3 bg-emerald-900 text-emerald-300 rounded-xl font-bold">取消</button>
-          <button @click="confirmPrivateJoin" class="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-500">进入</button>
+          <button @click="confirmPrivateJoin" class="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-500">加入</button>
         </div>
       </div>
     </div>
