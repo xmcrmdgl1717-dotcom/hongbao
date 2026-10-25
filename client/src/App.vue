@@ -11,55 +11,57 @@ const isConnected = ref(false)
 const showConfig = ref(false)
 const serverUrl = ref('')
 
-// 🌟 终极暴力清洗地址
+// 终极暴力清洗地址
 function normalizeUrl(url) {
   if (!url) return 'wss://localhost:10000/ws'
-  
-  // 1. 暴力剥离所有可能填错的协议头，只保留纯域名和路径
   let domain = url.trim()
-    .replace(/^(ws|wss|http|https):\/\//gi, '') // 正常带冒号的
-    .replace(/^(ws|wss|http|https)\/\//gi, '')  // 畸形的（没冒号的）
-    .replace(/\/$/, '') // 去掉末尾斜杠
+    .replace(/^(ws|wss|http|https):\/\//gi, '')
+    .replace(/^(ws|wss|http|https)\/\//gi, '')
+    .replace(/\/$/, '')
 
   if (!domain) return 'wss://localhost:10000/ws'
 
-  // 2. 如果是本地开发环境，使用 ws://
   if (domain.includes('localhost') || domain.includes('127.0.0.1')) {
      return `ws://${domain.includes('/ws') ? domain : domain + '/ws'}`
   }
 
-  // 3. 如果是 Render 线上环境，强制使用 wss://
   if (!domain.endsWith('/ws')) domain += '/ws'
   return `wss://${domain}`
 }
 
 function startConnection(url) {
   isConnected.value = false
-  // 清洗后存入
   const finalUrl = normalizeUrl(url)
   serverUrl.value = finalUrl
   localStorage.setItem('rp_serverUrl', finalUrl)
   console.log('最终尝试连接地址:', finalUrl)
 
-  connect(finalUrl, (msg) => {
-    isConnected.value = true
-    store.applyMessage(msg)
-    
-    if (msg.type === 'ROOM_CREATED' || msg.type === 'SNAPSHOT') {
-      if (msg.type === 'SNAPSHOT' && currentView.value !== 'room') {
-        currentView.value = 'room'
+  connect(
+    finalUrl, 
+    (msg) => {
+      // 收到消息
+      store.applyMessage(msg)
+      if (msg.type === 'ROOM_CREATED' || msg.type === 'SNAPSHOT') {
+        if (msg.type === 'SNAPSHOT' && currentView.value !== 'room') {
+          currentView.value = 'room'
+        }
       }
+      if (msg.type === 'LEAVE_SUCCESS') {
+        currentView.value = 'lobby'
+      }
+    }, 
+    () => {
+      // 失败
+      isConnected.value = false
+    },
+    () => {
+      // 🌟 连接成功！立刻设为 true，渲染大厅
+      isConnected.value = true
     }
-    if (msg.type === 'LEAVE_SUCCESS') {
-      currentView.value = 'lobby'
-    }
-  }, () => {
-    isConnected.value = false
-  })
+  )
 }
 
 onMounted(() => {
-  // 如果本地存的地址包含 https 或拼写错误，直接清空，使用默认值
   let cached = localStorage.getItem('rp_serverUrl')
   if (cached && (cached.includes('https//') || cached.includes('ws://https'))) {
     localStorage.removeItem('rp_serverUrl')
