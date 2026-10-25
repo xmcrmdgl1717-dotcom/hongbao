@@ -6,40 +6,40 @@ import { connect } from './socket'
 import { useGameStore } from './stores/game'
 
 const store = useGameStore()
-const currentView = ref('lobby') // 'lobby' | 'room'
+const currentView = ref('lobby')
 const isConnected = ref(false)
 const showConfig = ref(false)
 const serverUrl = ref('')
 
-// 智能规范化 URL
+// 🌟 终极暴力清洗地址
 function normalizeUrl(url) {
   if (!url) return 'wss://localhost:10000/ws'
-  let formatted = url.trim()
   
-  // 移除 https:// 或 http://
-  if (formatted.startsWith('https://')) formatted = formatted.replace('https://', 'wss://')
-  if (formatted.startsWith('http://')) formatted = formatted.replace('http://', 'ws://')
-  
-  // 如果写成了 ws://https// 这种奇怪的格式（用户截图里的情况）
-  if (formatted.includes('ws://https//')) formatted = formatted.replace('ws://https//', 'wss://')
-  
-  // 如果没有协议头，自动补全
-  if (!formatted.startsWith('ws://') && !formatted.startsWith('wss://')) {
-    formatted = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + formatted
+  // 1. 暴力剥离所有可能填错的协议头，只保留纯域名和路径
+  let domain = url.trim()
+    .replace(/^(ws|wss|http|https):\/\//gi, '') // 正常带冒号的
+    .replace(/^(ws|wss|http|https)\/\//gi, '')  // 畸形的（没冒号的）
+    .replace(/\/$/, '') // 去掉末尾斜杠
+
+  if (!domain) return 'wss://localhost:10000/ws'
+
+  // 2. 如果是本地开发环境，使用 ws://
+  if (domain.includes('localhost') || domain.includes('127.0.0.1')) {
+     return `ws://${domain.includes('/ws') ? domain : domain + '/ws'}`
   }
-  
-  // 如果没有 /ws 后缀，尝试加上
-  if (!formatted.endsWith('/ws')) {
-    formatted = formatted.replace(/\/$/, '') + '/ws'
-  }
-  return formatted
+
+  // 3. 如果是 Render 线上环境，强制使用 wss://
+  if (!domain.endsWith('/ws')) domain += '/ws'
+  return `wss://${domain}`
 }
 
 function startConnection(url) {
   isConnected.value = false
+  // 清洗后存入
   const finalUrl = normalizeUrl(url)
   serverUrl.value = finalUrl
   localStorage.setItem('rp_serverUrl', finalUrl)
+  console.log('最终尝试连接地址:', finalUrl)
 
   connect(finalUrl, (msg) => {
     isConnected.value = true
@@ -54,15 +54,20 @@ function startConnection(url) {
       currentView.value = 'lobby'
     }
   }, () => {
-    // 连接失败时的回调（重连机制触发）
     isConnected.value = false
   })
 }
 
 onMounted(() => {
-  // 默认读取本地或环境变量，或者尝试使用 Render 的默认域名
+  // 如果本地存的地址包含 https 或拼写错误，直接清空，使用默认值
+  let cached = localStorage.getItem('rp_serverUrl')
+  if (cached && (cached.includes('https//') || cached.includes('ws://https'))) {
+    localStorage.removeItem('rp_serverUrl')
+    cached = null
+  }
+  
   const defaultUrl = import.meta.env.VITE_WS_URL || 'wss://localhost:10000/ws'
-  serverUrl.value = localStorage.getItem('rp_serverUrl') || defaultUrl
+  serverUrl.value = cached || defaultUrl
   startConnection(serverUrl.value)
 })
 
@@ -80,14 +85,14 @@ function handleManualConnect() {
       <span class="text-xs text-emerald-600 font-normal mt-2 max-w-xs text-center break-all">{{ serverUrl }}</span>
     </div>
     
-    <div class="absolute bottom-10 flex flex-col items-center gap-4">
-      <button @click="showConfig = !showConfig" class="px-4 py-2 bg-emerald-900/50 hover:bg-emerald-800 border border-emerald-700 rounded-lg text-sm transition">
+    <div class="absolute bottom-10 flex flex-col items-center gap-4 z-50">
+      <button @click="showConfig = !showConfig" class="px-4 py-2 bg-emerald-900/80 hover:bg-emerald-800 border border-emerald-700 rounded-lg text-sm transition shadow-lg">
         ⚙️ 无法连接？手动设置服务器地址
       </button>
       
       <div v-if="showConfig" class="bg-[#133024] p-6 rounded-2xl border border-emerald-700 shadow-2xl w-80">
-        <p class="text-xs text-emerald-400 mb-2">请填入 Render 后端分配的地址（需包含 wss:// 或 https://）</p>
-        <input v-model="serverUrl" placeholder="wss://xxx.onrender.com/ws" class="w-full bg-black/50 border border-emerald-600 rounded-lg px-3 py-2 text-white outline-none mb-4 text-sm font-mono" />
+        <p class="text-xs text-emerald-400 mb-2">请填入后端的域名即可（无需写 wss:// 或 https://，系统会自动处理）</p>
+        <input v-model="serverUrl" placeholder="red-packet-server-xxx.onrender.com" class="w-full bg-black/50 border border-emerald-600 rounded-lg px-3 py-2 text-white outline-none mb-4 text-sm font-mono" />
         <button @click="handleManualConnect" class="w-full py-2 bg-yellow-500 text-black font-bold rounded-lg hover:bg-yellow-400">重新连接</button>
       </div>
     </div>
