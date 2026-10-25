@@ -1,7 +1,7 @@
 let ws = null
 let retry = 0
 
-export function connect(url, onMessage, onError) {
+export function connect(url, onMessage, onError, onOpen) {
   if (ws) {
     ws.onclose = null // 防止旧的连接触发重连
     ws.close()
@@ -12,6 +12,7 @@ export function connect(url, onMessage, onError) {
   ws.onopen = () => { 
     retry = 0 
     console.log('WebSocket 连接成功:', url)
+    if (onOpen) onOpen() // 触发连接成功的回调
   }
   
   ws.onmessage = (e) => {
@@ -27,7 +28,7 @@ export function connect(url, onMessage, onError) {
   ws.onclose = () => {
     const delay = Math.min(1000 * 2 ** retry++, 10000)
     console.log(`连接断开，${delay}ms 后重试...`)
-    setTimeout(() => connect(url, onMessage, onError), delay)
+    setTimeout(() => connect(url, onMessage, onError, onOpen), delay)
   }
 }
 
