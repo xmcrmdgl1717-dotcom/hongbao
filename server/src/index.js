@@ -1,15 +1,15 @@
 import express from 'express'
 import { createServer } from 'http'
 import { WebSocketServer } from 'ws'
-import { createRoom, getRoom, removeRoom, getAllRooms } from './roomManager.js'
+import { createRoom, getRoom, removeRoom } from './roomManager.js'
 import { getPublicRoomsList, addPublicRoom } from './lobbyManager.js'
 
 const app = express()
 const server = createServer(app)
 const wss = new WebSocketServer({ server, path: '/ws' })
 
-const roomClients = new Map() // roomId -> Set<ws>
-const lobbyClients = new Set() // 在大厅的 ws
+const roomClients = new Map() 
+const lobbyClients = new Set() 
 
 function broadcastToRoom(roomId, message) {
   const set = roomClients.get(roomId)
@@ -35,7 +35,6 @@ wss.on('connection', (ws) => {
     try { msg = JSON.parse(raw) } catch { return }
     const { type, roomId } = msg
 
-    // 1. 大厅相关
     if (type === 'JOIN_LOBBY') {
       lobbyClients.add(ws)
       ws.isLobby = true
@@ -56,7 +55,6 @@ wss.on('connection', (ws) => {
       return
     }
 
-    // 2. 房间相关
     if (!roomId) return
 
     if (type === 'JOIN_ROOM') {
@@ -65,13 +63,11 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'ERROR', msg: '房间不存在' }))
         return
       }
-      // 密码校验
       if (!room.config.isPublic && room.config.password !== msg.password) {
         ws.send(JSON.stringify({ type: 'ERROR', msg: '密码错误' }))
         return
       }
 
-      // 从大厅移至房间
       if (ws.isLobby) { lobbyClients.delete(ws); ws.isLobby = false; }
       if (!roomClients.has(roomId)) roomClients.set(roomId, new Set())
       roomClients.get(roomId).add(ws)
@@ -79,7 +75,7 @@ wss.on('connection', (ws) => {
       ws.userId = msg.userId
 
       room.addPlayer(msg.userId)
-      broadcastLobby() // 通知大厅人数变化
+      broadcastLobby() 
       
       ws.send(JSON.stringify({ type: 'SNAPSHOT', snapshot: room.snapshot() }))
       return
@@ -88,6 +84,12 @@ wss.on('connection', (ws) => {
     const room = getRoom(roomId)
     if (!room) return
 
+    // 新增：房主开始游戏
+    if (type === 'START_GAME') {
+      if (room.hostId === msg.userId && room.phase === 'WAITING') {
+        room.start(room.hostId)
+      }
+    }
     if (type === 'ADD_BOT') {
       const botId = 'AI_' + Math.floor(Math.random() * 1000)
       room.addPlayer(botId, true)
