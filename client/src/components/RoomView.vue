@@ -4,20 +4,17 @@ import { useGameStore } from '../stores/game'
 import { send } from '../socket'
 import PlayerSeat from './PlayerSeat.vue'
 import RedPacketStage from './RedPacketStage.vue'
-import ActionBar from './ActionBar.vue'
 import GameOver from './GameOver.vue'
-import IssueModal from './IssueModal.vue'
 
 const store = useGameStore()
 const emit = defineEmits(['leave'])
-const showIssueModal = ref(false)
 
 const isHost = computed(() => store.hostId === store.myId)
 const isMyIssue = computed(() => store.phase === 'ISSUING' && store.issuerId === store.myId)
-const canGrab = computed(() => store.phase === 'GRABBING' && !store.grabs.some(g => g.userId === store.myId))
+const hasGrabbed = computed(() => store.grabs.some(g => g.userId === store.myId))
+const canGrab = computed(() => store.phase === 'GRABBING' && !hasGrabbed.value)
 const myPlayer = computed(() => store.players.find(p => p.id === store.myId))
 
-// 根据人数将玩家分布到桌子周围的固定位置
 const seatPositions = computed(() => {
   const p = store.players
   const layouts = { 1: ['bottom'], 2: ['bottom', 'top'], 3: ['bottom', 'right', 'top'], 4: ['bottom', 'right', 'top', 'left'] }
@@ -25,16 +22,11 @@ const seatPositions = computed(() => {
   return p.map((player, i) => ({ ...player, posClass: layout[i] }))
 })
 
-function handleIssueClick() { showIssueModal.value = true }
-function confirmIssue({ amount, count }) {
-  send({ type: 'ISSUE', roomId: store.roomId, userId: store.myId, amount, count })
-  showIssueModal.value = false
-}
-
-function onGrab() { send({ type: 'GRAB', roomId: store.roomId, userId: store.myId }) }
+function startGame() { send({ type: 'START_GAME', roomId: store.roomId, userId: store.myId }) }
 function addBot() { send({ type: 'ADD_BOT', roomId: store.roomId }) }
 function kickBot(botId) { send({ type: 'KICK_BOT', roomId: store.roomId, botId }) }
-function startGame() { send({ type: 'START_GAME', roomId: store.roomId, userId: store.myId }) }
+function handleIssue() { send({ type: 'ISSUE', roomId: store.roomId, userId: store.myId }) }
+function onGrab() { send({ type: 'GRAB', roomId: store.roomId, userId: store.myId }) }
 function leaveRoom() { send({ type: 'LEAVE_ROOM', roomId: store.roomId, userId: store.myId }); emit('leave') }
 </script>
 
@@ -42,15 +34,14 @@ function leaveRoom() { send({ type: 'LEAVE_ROOM', roomId: store.roomId, userId: 
   <div class="min-h-screen bg-[#051008] flex flex-col relative overflow-hidden perspective-container">
     <div class="absolute inset-0 table-background pointer-events-none"></div>
 
-    <!-- 顶部 HUD -->
     <header class="p-3 flex justify-between items-center z-30 bg-black/40 border-b border-white/5 backdrop-blur-md absolute top-0 w-full">
       <div class="flex items-center gap-3">
-        <button @click="leaveRoom" class="px-3 py-1 bg-red-600/80 text-white text-xs font-bold rounded hover:bg-red-500 transition border border-red-400">退出</button>
-        <span class="text-emerald-200 text-sm font-bold">房间: {{ store.roomId }} <span v-if="!store.config?.isPublic" class="text-red-400 ml-1">🔒</span></span>
+        <button @click="leaveRoom" class="px-3 py-1 bg-red-600/80 text-white text-xs font-bold rounded hover:bg-red-500 transition">退出</button>
+        <span class="text-emerald-200 text-sm font-bold">房间: {{ store.roomId }} <span v-if="!store.config?.isPublic" class="text-red-400">🔒</span></span>
       </div>
       <div class="text-yellow-400 font-black text-lg text-center">
         {{ store.config?.mode === 'mine' ? '扫雷' : (store.config?.mode === 'multiplier' ? '倍数' : '最差') }} 
-        <span class="text-xs text-emerald-300 ml-2">第{{ store.round || 1 }}/{{ store.config?.maxRounds }}局</span>
+        <span class="text-xs text-emerald-300 ml-2">{{ store.round || 0 }}/{{ store.config?.maxRounds }}局</span>
       </div>
       <div class="flex items-center gap-2 bg-black/50 px-4 py-1 rounded border border-yellow-500/30">
         <span class="text-yellow-300 text-xs">余额</span>
@@ -58,60 +49,60 @@ function leaveRoom() { send({ type: 'LEAVE_ROOM', roomId: store.roomId, userId: 
       </div>
     </header>
     
-    <!-- 3D 桌面区域 -->
-    <main class="flex-1 relative w-full max-w-5xl mx-auto mt-16">
-      
-      <!-- 中心舞台 -->
+    <main class="flex-1 relative w-full max-w-5xl mx-auto mt-16 pb-32">
       <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
         <RedPacketStage :phase="store.phase" :grabs="store.grabs" :deadline="store.deadline" :last-settle="store.lastSettle" />
       </div>
 
-      <!-- 环绕座位 -->
       <div v-for="p in seatPositions" :key="p.id" class="absolute z-30 seat-wrapper" :class="'seat-' + p.posClass">
         <PlayerSeat 
-          :player-id="p.id" 
-          :label="p.id === store.myId ? '我' : p.id"
-          :is-issuer="p.id === store.issuerId"
-          :is-mine-hit="store.lastSettle?.mineHitters?.includes(p.id)"
-          :balance="p.balance"
-          :offline="p.offline"
-          :is-host="p.id === store.hostId"
-          @kick="kickBot(p.id)"
+          :player-id="p.id" :label="p.id === store.myId ? '我' : p.id" :is-issuer="p.id === store.issuerId"
+          :is-mine-hit="store.lastSettle?.mineHitters?.includes(p.id)" :balance="p.balance" :offline="p.offline"
+          :is-host="p.id === store.hostId" @kick="kickBot(p.id)"
         />
       </div>
 
-      <!-- 房主控制台 -->
-      <div v-if="isHost && store.players.length < 4" class="absolute bottom-4 left-4 z-30">
-        <button @click="addBot" class="px-4 py-2 bg-emerald-800/80 text-emerald-300 border border-emerald-600 rounded shadow-lg text-sm hover:bg-emerald-700 transition flex items-center gap-2">
+      <div v-if="isHost && store.players.length < 4 && store.phase === 'WAITING'" class="absolute top-20 right-4 z-30">
+        <button @click="addBot" class="px-4 py-2 bg-emerald-800/80 text-emerald-300 border border-emerald-600 rounded shadow-lg text-sm flex items-center gap-2">
           <span>🤖</span> 添加机器人
         </button>
       </div>
-
-      <!-- 底部操作栏 / 开始游戏按钮 -->
-      <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 w-full flex justify-center">
-        
-        <!-- 如果游戏还没开始 -->
-        <div v-if="store.phase === 'WAITING'" class="flex flex-col items-center gap-4">
-          <div class="text-emerald-400 text-sm animate-pulse">等待房主开始游戏...</div>
-          <button v-if="isHost" @click="startGame" class="px-12 py-4 rounded-full bg-gradient-to-b from-green-400 to-green-600 shadow-xl shadow-green-900/50 font-black text-xl hover:scale-105 active:scale-95 transition-transform">
-            开始游戏
-          </button>
-        </div>
-
-        <!-- 如果游戏已经在进行中 -->
-        <ActionBar
-          v-else
-          :phase="store.phase"
-          :is-my-issue="isMyIssue"
-          :can-grab="canGrab"
-          @issue="handleIssueClick"
-          @grab="onGrab"
-        />
-      </div>
-
     </main>
 
-    <IssueModal v-if="showIssueModal" @close="showIssueModal = false" @confirm="confirmIssue" />
+    <!-- 🌟 底部操作栏：根据阶段和身份，直接显示，绝不卡死 -->
+    <div class="fixed bottom-0 left-0 w-full bg-[#0a1f14]/90 backdrop-blur-md border-t border-emerald-900/50 p-4 z-40 flex justify-center shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+      
+      <!-- 状态 1：等待开局 (WAITING) -->
+      <div v-if="store.phase === 'WAITING'" class="flex items-center gap-4">
+        <div v-if="isHost" class="flex flex-col items-center gap-2">
+          <div class="text-xs text-emerald-400">你是房主，配置已就绪（底金20元/5份）</div>
+          <button @click="startGame" class="px-16 py-3 rounded-full bg-gradient-to-b from-green-400 to-green-600 shadow-lg text-xl font-black hover:scale-105 active:scale-95 transition">开始游戏</button>
+        </div>
+        <div v-else class="text-emerald-400 font-bold animate-pulse text-lg">等待房主开始游戏...</div>
+      </div>
+
+      <!-- 状态 2：发包阶段 (ISSUING) -->
+      <div v-else-if="store.phase === 'ISSUING'" class="flex items-center gap-4 w-full max-w-md justify-center">
+        <div v-if="isMyIssue" class="flex items-center gap-4">
+          <div class="text-red-400 font-bold animate-pulse text-lg">轮到你发包了！(扣款 {{(store.config?.baseAmountCents * store.multiplier / 100).toFixed(2)}}元)</div>
+          <button @click="handleIssue" class="px-12 py-3 rounded-full bg-gradient-to-b from-red-500 to-red-700 shadow-lg text-xl font-black hover:scale-105 active:scale-95 transition">发红包</button>
+        </div>
+        <div v-else class="text-yellow-400 font-bold text-lg">等待 <span class="text-white">{{ store.issuerId }}</span> 发红包...</div>
+      </div>
+
+      <!-- 状态 3：抢包阶段 (GRABBING) -->
+      <div v-else-if="store.phase === 'GRABBING'" class="flex items-center justify-center w-full">
+        <button v-if="canGrab" @click="onGrab" class="px-20 py-3 rounded-full bg-gradient-to-b from-yellow-400 to-yellow-600 text-black shadow-lg text-2xl font-black animate-bounce hover:scale-105 transition">抢红包</button>
+        <div v-else class="text-emerald-500 font-bold text-lg">已抢，等待开奖...</div>
+      </div>
+
+      <!-- 状态 4：结算阶段 (SETTLING) -->
+      <div v-else-if="store.phase === 'SETTLING'" class="text-emerald-300 font-bold text-lg animate-pulse">
+        开奖中，下一棒：{{ store.lastSettle?.nextIssuerId }}
+      </div>
+
+    </div>
+
     <GameOver v-if="store.phase === 'FINISHED'" @leave="leaveRoom" />
   </div>
 </template>
