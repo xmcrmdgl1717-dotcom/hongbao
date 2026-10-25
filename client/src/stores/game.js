@@ -11,7 +11,8 @@ export const useGameStore = defineStore('game', {
     multiplier: 1,
     deadline: null,
     config: null,
-    myId: 'p1'
+    myId: '',
+    players: []
   }),
   actions: {
     applySnapshot(s) {
@@ -24,14 +25,17 @@ export const useGameStore = defineStore('game', {
       this.multiplier = s.multiplier
       this.deadline = s.deadline
       this.config = s.config
+      this.players = s.players || []
     },
     applyMessage(msg) {
       if (msg.type === 'SNAPSHOT') { this.applySnapshot(msg.snapshot); return }
       if (msg.seq && msg.seq <= this.seq) return
       if (msg.phase) this.phase = msg.phase
+      
       if (msg.type === 'PHASE') {
         this.issuerId = msg.issuerId
         this.deadline = msg.deadline
+        this.grabs = [] // 新一轮清空
       }
       if (msg.type === 'PACKET_ISSUED') {
         this.issuerId = msg.issuerId
@@ -45,6 +49,7 @@ export const useGameStore = defineStore('game', {
         this.grabs = msg.grabs
         this.multiplier = msg.multiplier
         this.round++
+        this._lastSettle = msg // 暂存结算信息供UI使用
       }
       if (msg.seq) this.seq = msg.seq
     }

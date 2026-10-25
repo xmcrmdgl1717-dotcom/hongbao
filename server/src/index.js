@@ -41,15 +41,22 @@ wss.on('connection', (ws) => {
         room = createRoom(roomId, {
           mode: msg.mode ?? 'worst',
           baseAmountCents: 2000,
-          packetCount: 5,
-          issueWindowSec: 12,
+          packetCount: 5, // 会动态调整为人数
+          issueWindowSec: 10,
           grabWindowSec: 10,
           maxRounds: 10,
           multiplierCap: 4,
           tailDigit: 3
         }, (m) => broadcastToRoom(roomId, m))
+      }
+      
+      room.addPlayer(msg.userId)
+      
+      // 如果是第一个人进房，直接开局
+      if (room.phase === 'WAITING') {
         room.start(msg.userId)
       }
+      
       ws.send(JSON.stringify({ type: 'SNAPSHOT', snapshot: room.snapshot() }))
       return
     }

@@ -1,19 +1,12 @@
 <script setup>
-import { onMounted } from 'vue'
-import { connect, send } from './socket'
-import { useGameStore } from './stores/game'
+import { ref } from 'vue'
+import Lobby from './components/Lobby.vue'
 import Table from './components/Table.vue'
 
-const store = useGameStore()
-
-onMounted(() => {
-  store.roomId = 'demo-room'
-  const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:10000/ws'
-  connect(wsUrl, (msg) => store.applyMessage(msg))
-  send({ type: 'JOIN', roomId: store.roomId, userId: store.myId, mode: 'worst' })
-})
+const isJoined = ref(false)
 </script>
 
 <template>
-  <Table />
+  <Lobby v-if="!isJoined" @join="isJoined = true" />
+  <Table v-else />
 </template>

@@ -16,22 +16,38 @@ export class GameRoom {
     this.deadline = null
     this.timer = null
     this.seq = 0
+    this.players = [] // 记录房间内的玩家
   }
+
+  addPlayer(userId) {
+    if (!this.players.find(p => p.id === userId)) {
+      this.players.push({ id: userId })
+      // 如果是第一个玩家进房，自动成为第一轮发包者
+      if (!this.issuerId) this.issuerId = userId
+      this.emit('PLAYER_JOINED', { players: this.players })
+    }
+  }
+
   emit(type, payload = {}) {
     this.seq++
     this.broadcast({ type, seq: this.seq, phase: this.phase, ...payload })
   }
+
   start(issuerId) {
     this.issuerId = issuerId
     this.phase = 'ISSUING'
+    this.grabs = []
     this.armTimer(this.config.issueWindowSec, () => this.onIssueTimeout())
     this.emit('PHASE', { deadline: this.deadline, issuerId: this.issuerId })
   }
+
   issue(userId) {
     if (this.phase !== 'ISSUING' || userId !== this.issuerId) return
     clearTimeout(this.timer)
     const total = this.config.baseAmountCents * this.multiplier
-    this.packets = generatePackets(total, this.config.packetCount)
+    // 根据房间人数生成红包，至少 1 个
+    const count = Math.max(1, this.players.length)
+    this.packets = generatePackets(total, count)
     this.grabs = []
     this.phase = 'GRABBING'
     this.armTimer(this.config.grabWindowSec, () => this.resolve())
@@ -43,6 +59,7 @@ export class GameRoom {
       deadline: this.deadline
     })
   }
+
   grab(userId) {
     if (this.phase !== 'GRABBING') return
     if (this.grabs.some(g => g.userId === userId)) return
@@ -50,8 +67,10 @@ export class GameRoom {
     const amount = this.packets[this.grabs.length]
     this.grabs.push({ userId, amount })
     this.emit('GRABBED', { userId, amount, remaining: this.packets.length - this.grabs.length })
-    if (this.grabs.length === this.packets.length) this.resolve()
+    // 如果所有人都抢了，提前结算
+    if (this.grabs.length === Math.min(this.players.length, this.packets.length)) this.resolve()
   }
+
   resolve() {
     if (this.phase !== 'GRABBING') return
     clearTimeout(this.timer)
@@ -71,6 +90,7 @@ export class GameRoom {
       mineHitters: result.mineHitters,
       multiplier: this.multiplier
     })
+    
     this.timer = setTimeout(() => {
       this.round++
       if (this.round >= this.config.maxRounds) {
@@ -78,19 +98,24 @@ export class GameRoom {
         this.emit('FINISHED')
         return
       }
-      if (result.nextIssuerId) this.start(result.nextIssuerId)
-      else this.start(this.issuerId)
-    }, 2200)
+      // 如果没算出下一个发包人（比如都没抢），默认还是上一个人发
+      const next = result.nextIssuerId || this.issuerId
+      this.start(next)
+    }, 3000) // 延长到3秒，方便看结算
   }
+
   onIssueTimeout() {
     if (this.phase !== 'ISSUING') return
+    // 超时系统代发
     this.issue(this.issuerId)
   }
+
   armTimer(seconds, fn) {
     clearTimeout(this.timer)
     this.deadline = Date.now() + seconds * 1000
     this.timer = setTimeout(fn, seconds * 1000)
   }
+
   snapshot() {
     return {
       roomId: this.id,
@@ -101,7 +126,8 @@ export class GameRoom {
       multiplier: this.multiplier,
       deadline: this.deadline,
       seq: this.seq,
-      config: this.config
+      config: this.config,
+      players: this.players
     }
   }
 }
