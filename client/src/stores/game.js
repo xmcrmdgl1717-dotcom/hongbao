@@ -1,5 +1,4 @@
 import { defineStore } from 'pinia'
-
 export const useGameStore = defineStore('game', {
   state: () => ({
     roomId: null, phase: 'WAITING', seq: 0, round: 0, issuerId: null, grabs: [], multiplier: 1,
