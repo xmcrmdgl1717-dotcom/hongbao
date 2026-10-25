@@ -18,7 +18,6 @@ const canGrab = computed(() => store.phase === 'GRABBING' && !store.grabs.some(g
 const myPlayer = computed(() => store.players.find(p => p.id === store.myId))
 
 function handleIssueClick() { showIssueModal.value = true }
-
 function confirmIssue({ amount, count }) {
   send({ type: 'ISSUE', roomId: store.roomId, userId: store.myId, amount, count })
   showIssueModal.value = false
@@ -26,34 +25,35 @@ function confirmIssue({ amount, count }) {
 
 function onGrab() { send({ type: 'GRAB', roomId: store.roomId, userId: store.myId }) }
 function addBot() { send({ type: 'ADD_BOT', roomId: store.roomId }) }
-function handleLeave() {
-  localStorage.removeItem('rp_roomId')
-  localStorage.removeItem('rp_myId')
-  emit('leave')
-}
 </script>
 
 <template>
-  <div class="min-h-screen bg-emerald-950 text-white flex flex-col relative overflow-hidden">
-    <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: radial-gradient(circle at 50% 50%, #059669 0%, transparent 60%);"></div>
+  <!-- 仿真毛毡桌布背景 -->
+  <div class="min-h-screen bg-[#0d5c3f] text-white flex flex-col relative overflow-hidden" style="background-image: radial-gradient(circle at center, #148257 0%, #083422 100%);">
+    <!-- 顶部 HUD -->
+    <header class="p-3 flex justify-between items-center z-20 bg-black/30 border-b border-white/10 backdrop-blur-sm shadow-md">
+      <div class="flex items-center gap-3">
+        <button @click="emit('leave')" class="px-3 py-1 bg-red-600/80 hover:bg-red-500 text-white text-xs font-bold rounded-full transition border border-red-400">退出</button>
+        <span class="text-emerald-200 text-sm font-bold bg-black/40 px-3 py-1 rounded-full border border-emerald-500/30">房间: {{ store.roomId }}</span>
+      </div>
+      
+      <div class="flex flex-col items-center">
+        <div class="text-yellow-400 font-black tracking-widest text-lg drop-shadow-md">
+          {{ store.config?.mode === 'mine' ? '扫雷模式' : (store.config?.mode === 'multiplier' ? '倍数接龙' : '最差接龙') }}
+        </div>
+        <div class="text-xs text-emerald-200/60 font-mono">第 {{ store.round || 1 }} / {{ store.config?.maxRounds || 10 }} 局</div>
+      </div>
 
-    <header class="p-4 flex justify-between items-center z-10 bg-emerald-900/50 border-b border-emerald-800">
-      <div class="text-sm flex items-center gap-4">
-        <span class="text-emerald-400">房间:</span> {{ store.roomId }}
-        <span class="text-emerald-400">{{ store.round }}/{{ store.config?.maxRounds }}局</span>
-        <button @click="handleLeave" class="px-2 py-1 bg-red-900/50 text-red-300 text-xs rounded border border-red-800 hover:bg-red-800 transition">退出</button>
-      </div>
-      <div class="text-red-400 font-bold bg-red-900/30 px-3 py-1 rounded-full border border-red-800 text-xs">
-        {{ store.config?.mode === 'mine' ? '扫雷' : (store.config?.mode === 'multiplier' ? '倍数' : '最差') }}
-      </div>
-      <div class="text-yellow-400 font-mono font-bold">
-        我的余额: {{ myPlayer ? (myPlayer.balance / 100).toFixed(2) : '0.00' }}
+      <div class="flex items-center gap-2 bg-black/40 px-4 py-1.5 rounded-full border border-yellow-500/30">
+        <span class="text-yellow-300 text-xs">余额</span>
+        <span class="text-yellow-400 font-mono font-bold">{{ myPlayer ? (myPlayer.balance / 100).toFixed(2) : '0.00' }}</span>
       </div>
     </header>
     
-    <main class="flex-1 flex flex-col items-center justify-center gap-6 p-4 z-10">
+    <main class="flex-1 flex flex-col items-center justify-center gap-4 p-2 z-10 relative">
       
-      <div class="flex gap-4 flex-wrap justify-center w-full max-w-2xl relative">
+      <!-- 玩家席位环绕 -->
+      <div class="flex gap-4 flex-wrap justify-center w-full max-w-3xl relative mb-4">
         <PlayerSeat 
           v-for="p in store.players" 
           :key="p.id"
@@ -64,18 +64,35 @@ function handleLeave() {
           :balance="p.balance"
           :offline="p.offline"
         />
-        <button @click="addBot" class="px-4 py-2 rounded-full border border-dashed border-emerald-600 text-emerald-500 text-xs hover:bg-emerald-900 transition-colors">
+        <button v-if="store.players.length < 4" @click="addBot" class="px-5 py-3 rounded-2xl border-2 border-dashed border-emerald-500/40 text-emerald-400 text-sm font-bold hover:bg-emerald-800/40 transition-all hover:border-emerald-400">
           + 添加机器人
         </button>
       </div>
 
-      <div class="flex gap-6 items-center justify-center w-full max-w-2xl">
+      <!-- 中央核心区 -->
+      <div class="flex gap-8 items-center justify-center w-full max-w-4xl">
+        <!-- 左侧：历史流水 -->
+        <div class="hidden lg:flex flex-col w-64 bg-black/30 backdrop-blur rounded-2xl p-4 border border-white/10 shadow-xl">
+          <div class="text-emerald-300 font-bold text-xs mb-3 border-b border-white/10 pb-2">本轮抢包记录</div>
+          <div v-if="store.grabs.length === 0" class="text-emerald-600 text-xs py-4 text-center">暂无记录</div>
+          <div v-for="g in store.grabs" :key="g.userId" class="flex justify-between py-1.5 border-b border-white/5 last:border-0">
+            <span class="text-xs font-bold" :class="{'text-yellow-400': g.userId === store.myId, 'text-emerald-200': g.userId !== store.myId}">
+              {{ g.userId }}
+            </span>
+            <span class="font-mono text-xs" :class="{'text-red-400': store.lastSettle?.mineHitters?.includes(g.userId), 'text-yellow-200': !store.lastSettle?.mineHitters?.includes(g.userId)}">
+              {{ (g.amount / 100).toFixed(2) }}
+            </span>
+          </div>
+        </div>
+
+        <!-- 中间：红包舞台 -->
         <RedPacketStage :phase="store.phase" :grabs="store.grabs" :deadline="store.deadline" :last-settle="store.lastSettle" />
-        
-        <!-- 侧边聊天室 -->
-        <ChatBox class="hidden md:flex w-72" />
+
+        <!-- 右侧：聊天室 -->
+        <ChatBox class="hidden md:flex w-64" />
       </div>
 
+      <!-- 底部操作栏 -->
       <ActionBar
         :phase="store.phase"
         :is-my-issue="isMyIssue"
@@ -83,23 +100,10 @@ function handleLeave() {
         @issue="handleIssueClick"
         @grab="onGrab"
       />
-      
-      <div class="w-full max-w-md bg-emerald-900/60 rounded-xl p-4 mt-2 border border-emerald-800 shadow-inner">
-        <div class="text-emerald-400 mb-2 border-b border-emerald-800 pb-2 text-xs font-bold uppercase tracking-wider">本轮战况</div>
-        <div v-if="store.grabs.length === 0" class="text-emerald-600 text-sm py-4 text-center">暂无记录</div>
-        <div v-for="g in store.grabs" :key="g.userId" class="flex justify-between py-2 border-b border-emerald-800/50 last:border-0">
-          <span :class="{'text-yellow-400 font-bold': g.userId === store.myId, 'text-emerald-300': g.userId !== store.myId}">
-            {{ g.userId }} {{ g.userId === store.issuerId ? '(包)' : '' }}
-          </span>
-          <span class="font-mono" :class="{'text-red-400': store.lastSettle?.mineHitters?.includes(g.userId), 'text-yellow-200': !store.lastSettle?.mineHitters?.includes(g.userId)}">
-            {{ (g.amount / 100).toFixed(2) }} 元
-          </span>
-        </div>
-      </div>
 
     </main>
 
     <IssueModal v-if="showIssueModal" @close="showIssueModal = false" @confirm="confirmIssue" />
-    <GameOver v-if="store.phase === 'FINISHED'" @leave="handleLeave" />
+    <GameOver v-if="store.phase === 'FINISHED'" @leave="emit('leave')" />
   </div>
 </template>

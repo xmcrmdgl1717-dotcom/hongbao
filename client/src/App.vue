@@ -5,12 +5,8 @@ import Table from './components/Table.vue'
 import { useGameStore } from './stores/game'
 
 const store = useGameStore()
-const isJoined = ref(!!(localStorage.getItem('rp_roomId') && localStorage.getItem('rp_myId')))
-
-if (isJoined.value) {
-  store.roomId = localStorage.getItem('rp_roomId')
-  store.myId = localStorage.getItem('rp_myId')
-}
+// 强制回到大厅，由大厅去处理连接
+const isJoined = ref(false)
 
 function handleLeave() {
   isJoined.value = false
